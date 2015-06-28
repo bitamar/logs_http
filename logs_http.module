@@ -30,7 +30,7 @@ function logs_http_menu() {
  * Runs even for cached pages.
  */
 function logs_http_boot() {
-//  drupal_register_shutdown_function('logs_http_shutdown');
+  drupal_register_shutdown_function('logs_http_shutdown');
   set_exception_handler('_logs_http_exception_handler');
 }
 
@@ -121,19 +121,17 @@ function logs_http_shutdown() {
  *   The entry log as passed from hook_watchdog().
  */
 function logs_http_register_event(array $log_entry) {
+  static $events = array();
   if (!logs_http_get_http_url()) {
     return;
   }
-
-  $events = &drupal_static('logs_http_events', array());
-
   $event = array(
     'timestamp' => $log_entry['timestamp'],
     'type' => $log_entry['type'],
     'ip' => $log_entry['ip'],
     'request_uri' => $log_entry['request_uri'],
     'referer' => $log_entry['referer'],
-    'uid' => $log_entry['uid'],
+    'uid' => $log_entry['user']->uid,
     'link' => strip_tags($log_entry['link']),
     'message' => empty($log_entry['variables']) ? $log_entry['message'] : strtr($log_entry['message'], $log_entry['variables']),
     'severity' => $log_entry['severity'],
@@ -166,7 +164,7 @@ function logs_http_register_event(array $log_entry) {
  *   Array of events.
  */
 function logs_http_get_registered_events() {
-  $events = &drupal_static('logs_http_events', array());
+  static $events = array();
   return $events;
 }
 
@@ -236,3 +234,44 @@ function logs_http_array_remove_empty($haystack) {
   return $haystack;
 }
 
+// This part should be a patch to bootstrap.inc
+
+function &drupal_register_shutdown_function($callback = NULL) {
+  // We cannot use drupal_static() here because the static cache is reset during
+  // batch processing, which breaks batch handling.
+  static $callbacks = array();
+
+  if (isset($callback)) {
+    // Only register the internal shutdown function once.
+    if (empty($callbacks)) {
+      register_shutdown_function('_drupal_shutdown_function');
+    }
+    $args = func_get_args();
+    array_shift($args);
+    // Save callback and arguments
+    $callbacks [] = array('callback' => $callback, 'arguments' => $args);
+  }
+  return $callbacks;
+}
+
+function _drupal_shutdown_function() {
+  $callbacks = &drupal_register_shutdown_function();
+
+  // Set the CWD to DRUPAL_ROOT as it is not guaranteed to be the same as it
+  // was in the normal context of execution.
+  chdir(DRUPAL_ROOT);
+
+  try {
+    while (list($key, $callback) = each($callbacks)) {
+      call_user_func_array($callback ['callback'], $callback ['arguments']);
+    }
+  }
+  catch (Exception $exception) {
+    // If we are displaying errors, then do so with no possibility of a further uncaught exception being thrown.
+    require_once DRUPAL_ROOT . '/includes/errors.inc';
+    if (error_displayable()) {
+      print '<h1>Uncaught exception thrown in shutdown function.</h1>';
+      print '<p>' . _drupal_render_exception_safe($exception) . '</p><hr />';
+    }
+  }
+}

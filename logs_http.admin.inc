@@ -8,7 +8,7 @@
 /**
  * Logs HTTP POST API Configuration Form.
  */
-function logs_http_admin_settings($form, &$form_state) {
+function logs_http_admin_settings($form) {
   $form['logs_http_enabled'] = array(
     '#type' => 'checkbox',
     '#title' => t('Logs HTTP API'),
@@ -46,7 +46,7 @@ function logs_http_admin_settings($form, &$form_state) {
     '#type' => 'textfield',
     '#title' => t('Unique ID'),
     '#description' => t('An arbitrary ID that will identify the environment.'),
-    '#default_value' => variable_get('logs_http_uuid'),
+    '#default_value' => variable_get('logs_http_uuid', NULL),
   );
 
   return system_settings_form($form);

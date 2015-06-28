@@ -8,7 +8,9 @@
 /**
  * Logs HTTP POST API Configuration Form.
  */
-function logs_http_admin_settings($form) {
+function logs_http_admin_settings() {
+  $form = array();
+
   $form['logs_http_enabled'] = array(
     '#type' => 'checkbox',
     '#title' => t('Logs HTTP API'),

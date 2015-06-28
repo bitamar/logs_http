@@ -145,7 +145,7 @@ function logs_http_register_event(array $log_entry) {
     $event['exception_trace'] = base64_decode($log_entry['variables']['exception_trace']);
   }
 
-  if ($uuid = variable_get('logs_http_uuid')) {
+  if ($uuid = variable_get('logs_http_uuid', FALSE)) {
     $event['uuid'] = $uuid;
   }
 
@@ -204,12 +204,12 @@ function logs_http_watchdog(array $log_entry) {
  *   Return the URL if exists, or NULL if disabled.
  */
 function logs_http_get_http_url() {
-  if (!variable_get('logs_http_enabled', TRUE) || !variable_get('logs_http_url')) {
+  if (!variable_get('logs_http_enabled', TRUE) || !variable_get('logs_http_url', FALSE)) {
     // Don't register the event.
     return;
   }
 
-  return variable_get('logs_http_url');
+  return variable_get('logs_http_url', FALSE);
 }
 
 /**

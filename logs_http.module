@@ -30,8 +30,29 @@ function logs_http_menu() {
  * Runs even for cached pages.
  */
 function logs_http_boot() {
-  drupal_register_shutdown_function('logs_http_shutdown');
   set_exception_handler('_logs_http_exception_handler');
+}
+
+/**
+ * Implements hook_exit().
+ *
+ * Log events after the response was sent to the browser.
+ */
+function logs_http_exit() {
+  if (!$events = variable_get('logs_http_events', array())) {
+    return;
+  }
+
+  $url = logs_http_get_http_url();
+
+  // Send events to logs.
+  foreach ($events as $event) {
+    // Send data to Logs.
+    $response = drupal_http_request($url, array(), 'POST', json_encode($event));
+    // TODO: watchdog if response failed.
+  }
+
+  variable_del('logs_http_events');
 }
 
 
@@ -91,20 +112,7 @@ function _logs_http_decode_exception($exception) {
  * devel_boot() registers this function as a shutdown function.
  */
 function logs_http_shutdown() {
-  if (!$events = variable_get('logs_http_events', array())) {
-    return;
-  }
 
-  $url = logs_http_get_http_url();
-
-  // Send events to logs.
-  foreach ($events as $event) {
-    // Send data to Logs.
-    $response = drupal_http_request($url, array(), 'POST', json_encode($event));
-    // TODO: watchdog if response failed.
-  }
-
-  variable_del('logs_http_events');
 }
 
 /**
@@ -232,42 +240,7 @@ function logs_http_array_remove_empty($haystack) {
   return $haystack;
 }
 
-// This part should be a patch to bootstrap.inc
-
-function &drupal_register_shutdown_function($callback = NULL) {
-  // We cannot use drupal_static() here because the static cache is reset during
-  // batch processing, which breaks batch handling.
-  static $callbacks = array();
-
-  if (isset($callback)) {
-    // Only register the internal shutdown function once.
-    if (empty($callbacks)) {
-      register_shutdown_function('_drupal_shutdown_function');
-    }
-    $args = func_get_args();
-    array_shift($args);
-    // Save callback and arguments
-    $callbacks [] = array('callback' => $callback, 'arguments' => $args);
-  }
-  return $callbacks;
-}
-
-function _drupal_shutdown_function() {
-  $callbacks = &drupal_register_shutdown_function();
-
-  try {
-    while (list($key, $callback) = each($callbacks)) {
-      call_user_func_array($callback ['callback'], $callback ['arguments']);
-    }
-  }
-  catch (Exception $exception) {
-    // If we are displaying errors, then do so with no possibility of a further uncaught exception being thrown.
-    if (error_displayable()) {
-      print '<h1>Uncaught exception thrown in shutdown function.</h1>';
-      print '<p>' . _drupal_render_exception_safe($exception) . '</p><hr />';
-    }
-  }
-}
+//// TODO: Everything below this line is here temporarily.
 
 function _drupal_log_error($error, $fatal = FALSE) {
   // When running inside the testing framework, we relay the errors

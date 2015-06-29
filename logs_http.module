@@ -69,19 +69,9 @@ function logs_http_exit() {
  * @see _drupal_exception_handler()
  */
 function _logs_http_exception_handler($exception) {
-  try {
-    // Log the message to the watchdog and return an error page to the user.
-    _drupal_log_error(_logs_http_decode_exception($exception), TRUE);
-  }
-  catch (Exception $exception2) {
-    // Another uncaught exception was thrown while handling the first one.
-    // If we are displaying errors, then do so with no possibility of a further uncaught exception being thrown.
-    if (error_displayable()) {
-      print '<h1>Additional uncaught exception thrown while handling exception.</h1>';
-      print '<h2>Original</h2><p>' . _drupal_render_exception_safe($exception) . '</p>';
-      print '<h2>Additional</h2><p>' . _drupal_render_exception_safe($exception2) . '</p><hr />';
-    }
-  }
+  // Log the message to the watchdog and return an error page to the user.
+  $error = _logs_http_decode_exception($exception);
+  watchdog('php', '%type: !message in %function (line %line of %file).', $error, $error['severity_level']);
 }
 
 /**
@@ -160,6 +150,7 @@ function logs_http_register_event(array $log_entry) {
   unset($event_clone['timestamp']);
   $key = md5(serialize($event_clone));
   $events[$key] = $event;
+
   variable_set('logs_http_events', $events);
 }
 
@@ -242,31 +233,6 @@ function logs_http_array_remove_empty($haystack) {
 
 //// TODO: Everything below this line is here temporarily.
 
-function _drupal_log_error($error, $fatal = FALSE) {
-  // When running inside the testing framework, we relay the errors
-  // to the tested site by the way of HTTP headers.
-  $test_info = &$GLOBALS['drupal_test_info'];
-  if (!empty($test_info['in_child_site']) && !headers_sent() && (!defined('SIMPLETEST_COLLECT_ERRORS') || SIMPLETEST_COLLECT_ERRORS)) {
-    // $number does not use drupal_static as it should not be reset
-    // as it uniquely identifies each PHP error.
-    static $number = 0;
-    $assertion = array(
-      $error['!message'],
-      $error['%type'],
-      array(
-        'function' => $error['%function'],
-        'file' => $error['%file'],
-        'line' => $error['%line'],
-      ),
-    );
-    header('X-Drupal-Assertion-' . $number . ': ' . rawurlencode(serialize($assertion)));
-    $number++;
-  }
-
-  watchdog('php', '%type: !message in %function (line %line of %file).', $error, $error['severity_level']);
-
-}
-
 function _drupal_decode_exception($exception) {
   $message = $exception->getMessage();
 
@@ -293,7 +259,6 @@ function _drupal_decode_exception($exception) {
 
   return array(
     '%type' => get_class($exception),
-
     // The standard PHP exception handler considers that the exception message
     // is plain-text. We mimick this behavior here.
     '!message' => check_plain($message),
